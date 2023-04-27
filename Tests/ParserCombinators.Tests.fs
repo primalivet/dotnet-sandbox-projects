@@ -1,5 +1,6 @@
 module Sandbox.ParserCombinatorsTests
 
+open System
 open NUnit.Framework
 open FsUnit
 open Sandbox.ParserCombinators
@@ -138,3 +139,83 @@ let ``anyOf fails to parse a char from a list of chars`` () =
     |> run (anyOf charList)
     |> (fun x -> x.ToString())
     |> should equal "Failure \"Expected 'c'. Got: 'd'\""
+
+[<Test>]
+let ``parseLowercase succeeds to parse any lowercase char between a-z`` () =
+    "a" |> run parseLowercase |> should equal (Success('a', ""))
+
+[<Test>]
+let ``parseLowercase fails to parse any non lowercase char between a-z`` () =
+    "A"
+    |> run parseLowercase
+    |> (fun x -> x.ToString())
+    |> should equal "Failure \"Expected 'z'. Got: 'A'\""
+
+[<Test>]
+let ``parseDigit succeeds to parse any digit between 0-9`` () =
+    "0" |> run parseDigit |> should equal (Success('0', ""))
+
+[<Test>]
+let ``parseDigit combined with 'map int' succeeds to parse any digit between 0-9 into a int`` () =
+    // we need help from System.String to parse the char to a string
+    let parseDigitAsInt = map (fun x -> System.String [| x |] |> int) parseDigit in
+    run parseDigitAsInt "0" |> should equal (Success(0, ""))
+
+[<Test>]
+let ``map transforms the value inside a successfull parser`` () =
+    let parseH = pchar 'h' in "h" |> run (map Char.ToUpper parseH) |> should equal (Success('H', ""))
+
+[<Test>]
+let ``<!> (map infix) transforms the value inside a successfull parser`` () =
+    let parseH = pchar 'h' in "h" |> run (Char.ToUpper <!> parseH) |> should equal (Success('H', ""))
+
+[<Test>]
+let ``|>> (map reverse args) transforms the value inside a successfull parser`` () =
+    let parseH = pchar 'h' in
+    let parseHToUppercase = parseH |>> Char.ToUpper
+    "h" |> run parseHToUppercase |> should equal (Success('H', ""))
+
+[<Test>]
+let ``map skips the value inside a failed parser`` () =
+    let parseH = pchar 'h' in
+
+    "j"
+    |> run (map Char.ToUpper parseH)
+    |> (fun x -> x.ToString())
+    |> should equal "Failure \"Expected 'h'. Got: 'j'\""
+
+[<Test>]
+let ``retrn lifts a value into a parser`` () =
+    run (pure' 'h') "" |> should equal (Success('h', ""))
+
+[<Test>]
+let ``apply calls a wrapped function with a value wrapped in another parser`` () =
+    let fP = pure' Char.ToUpper in
+    let xP = pure' 'x' in
+    run (apply fP xP) "" |> should equal (Success('X', ""))
+
+[<Test>]
+let ``<*> (apply) calls a wrapped function with a value wrapped in another parser`` () =
+    let fP = pure' Char.ToUpper in
+    let xP = pure' 'x' in
+    run (fP <*> xP) "" |> should equal (Success('X', ""))
+
+[<Test>]
+let ``lift2 (with ints) lifts a function of 2 arguments into a parser and can take two parsers of values to apply to that lifted function``
+    ()
+    =
+    let liftedValue1 = (pure' 1)
+    let liftedValue2 = (pure' 2)
+
+    run (lift2 (+) liftedValue1 liftedValue2) "" |> should equal (Success(3, ""))
+
+[<Test>]
+let ``lift2 (with strings) lifts a function of 2 arguments into a parser and can take two parsers of values to apply to that lifted function``
+    ()
+    =
+    let startsWith (prefix: string) (str: string) = str.StartsWith(prefix) in
+    let liftedValue1 = pure' "hello"
+    let liftedValue2 = pure' "hello world"
+
+    run (lift2 startsWith liftedValue1 liftedValue2) ""
+    |> should equal (Success(true, ""))
