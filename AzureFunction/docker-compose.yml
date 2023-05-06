@@ -1,0 +1,13 @@
+version: '3.1'
+
+services:
+
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite
+    restart: always
+    ports:
+      - 10000:10000 # blob service
+      - 10001:10001 # queue service
+      - 10002:10002 # table service
+    volumes: 
+      - ./.azurite:/azurite:/data mcr.microsoft.com/azure-storage/azurite
